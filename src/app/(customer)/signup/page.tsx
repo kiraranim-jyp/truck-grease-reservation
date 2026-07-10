@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input, Label } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
-import { cn } from '@/lib/utils';
+import { MailCheck } from 'lucide-react';
 
 export default function SignupPage() {
   return (
@@ -22,152 +22,92 @@ function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [tab, setTab] = useState<'phone' | 'email'>('phone');
-  const [step, setStep] = useState<'form' | 'otp'>('form');
-
+  const [step, setStep] = useState<'form' | 'verify'>('form');
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
+  const [otp, setOtp] = useState('');
   const [referralCode, setReferralCode] = useState(searchParams.get('ref') || '');
   const [agree, setAgree] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resendMsg, setResendMsg] = useState('');
 
-  function validateBasics() {
+  async function submitForm() {
+    setError('');
     if (!name) {
       setError('이름을 입력해주세요.');
-      return false;
-    }
-    if (!agree) {
-      setError('필수 약관에 동의해주세요.');
-      return false;
-    }
-    return true;
-  }
-
-  // --- 휴대폰 가입 ---
-  async function submitPhoneForm() {
-    if (!validateBasics()) return;
-    if (phone.length < 9) {
-      setError('휴대폰 번호를 확인해주세요.');
       return;
     }
-    setError('');
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone: normalizePhone(phone) });
-    setLoading(false);
-    if (error) {
-      setError('인증번호 발송에 실패했습니다.');
-      return;
-    }
-    setStep('otp');
-  }
-
-  async function verifyAndCreateProfileByPhone() {
-    setLoading(true);
-    setError('');
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone: normalizePhone(phone),
-      token: otp,
-      type: 'sms',
-    });
-    if (error || !data.user) {
-      setLoading(false);
-      setError('인증번호가 올바르지 않습니다.');
-      return;
-    }
-
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: data.user.id,
-      name,
-      phone: normalizePhone(phone),
-      phone_verified: true,
-      login_provider: 'phone',
-      referred_by: referralCode || null,
-      marketing_agree: marketing,
-    });
-    setLoading(false);
-    if (profileError) {
-      setError('프로필 생성 중 오류가 발생했습니다: ' + profileError.message);
-      return;
-    }
-    router.push('/vehicles?welcome=1');
-    router.refresh();
-  }
-
-  // --- 이메일 가입 ---
-  async function submitEmailForm() {
-    if (!validateBasics()) return;
     if (!email || password.length < 6) {
       setError('이메일과 6자 이상의 비밀번호를 입력해주세요.');
       return;
     }
-    setError('');
-    setLoading(true);
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error || !data.user) {
-      setLoading(false);
-      setError(error?.message || '가입 중 오류가 발생했습니다.');
+    if (!agree) {
+      setError('필수 약관에 동의해주세요.');
       return;
     }
-
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: data.user.id,
-      name,
-      phone: '', // 이메일 가입 시 연락처는 마이페이지에서 추가 입력 가능
-      phone_verified: false,
-      login_provider: 'email',
-      referred_by: referralCode || null,
-      marketing_agree: marketing,
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        // 프로필 row는 DB 트리거(handle_new_user)가 auth.users 생성 즉시 자동으로 만듭니다.
+        data: {
+          name,
+          referred_by: referralCode || null,
+          marketing_agree: marketing,
+        },
+      },
     });
     setLoading(false);
-    if (profileError) {
-      setError('프로필 생성 중 오류가 발생했습니다: ' + profileError.message);
+    if (error) {
+      setError(
+        error.message.includes('already registered')
+          ? '이미 가입된 이메일입니다. 로그인을 시도해주세요.'
+          : '가입 중 오류가 발생했습니다: ' + error.message
+      );
+      return;
+    }
+    // 이메일 인증이 이미 꺼져있는 프로젝트라면 signUp만으로 세션이 바로 생깁니다.
+    if (data.session) {
+      router.push('/vehicles?welcome=1');
+      router.refresh();
+      return;
+    }
+    setStep('verify');
+  }
+
+  async function verifyCode() {
+    setError('');
+    setLoading(true);
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token: otp,
+      type: 'signup',
+    });
+    setLoading(false);
+    if (error || !data.session) {
+      setError('인증코드가 올바르지 않거나 만료되었습니다.');
       return;
     }
     router.push('/vehicles?welcome=1');
     router.refresh();
+  }
+
+  async function resendCode() {
+    setResendMsg('');
+    const { error } = await supabase.auth.resend({ type: 'signup', email });
+    setResendMsg(error ? '재발송에 실패했습니다.' : '인증코드를 다시 보냈습니다.');
   }
 
   return (
     <div className="mx-auto max-w-sm py-10">
       <h1 className="font-display text-2xl font-bold text-graphite-900">회원가입</h1>
-      <p className="mt-1 text-sm text-steel-500">휴대폰 또는 이메일로 가입하세요</p>
+      <p className="mt-1 text-sm text-steel-500">이메일로 간편하게 가입하세요</p>
 
-      {step === 'form' && (
-        <div className="mt-6 grid grid-cols-2 rounded border border-steel-100 bg-white p-1 text-sm font-semibold">
-          <button
-            onClick={() => {
-              setTab('phone');
-              setError('');
-            }}
-            className={cn(
-              'rounded py-2 transition-colors',
-              tab === 'phone' ? 'bg-graphite-900 text-white' : 'text-steel-500'
-            )}
-          >
-            휴대폰
-          </button>
-          <button
-            onClick={() => {
-              setTab('email');
-              setError('');
-            }}
-            className={cn(
-              'rounded py-2 transition-colors',
-              tab === 'email' ? 'bg-graphite-900 text-white' : 'text-steel-500'
-            )}
-          >
-            이메일
-          </button>
-        </div>
-      )}
-
-      <Card className="mt-4">
+      <Card className="mt-6">
         <CardBody className="space-y-4">
           {step === 'form' ? (
             <>
@@ -175,44 +115,25 @@ function SignupForm() {
                 <Label htmlFor="name">이름</Label>
                 <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
-
-              {tab === 'phone' && (
-                <div>
-                  <Label htmlFor="phone">휴대폰 번호</Label>
-                  <Input
-                    id="phone"
-                    inputMode="numeric"
-                    placeholder="010-1234-5678"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                </div>
-              )}
-
-              {tab === 'email' && (
-                <>
-                  <div>
-                    <Label htmlFor="email">이메일</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="password">비밀번호 (6자 이상)</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                </>
-              )}
-
+              <div>
+                <Label htmlFor="email">이메일</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">비밀번호 (6자 이상)</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
               <div>
                 <Label htmlFor="ref">추천인 코드 (선택)</Label>
                 <Input
@@ -248,29 +169,44 @@ function SignupForm() {
                   </span>
                 </label>
               </div>
-              <Button
-                className="w-full"
-                onClick={tab === 'phone' ? submitPhoneForm : submitEmailForm}
-                disabled={loading}
-              >
-                {loading ? '처리 중...' : tab === 'phone' ? '인증번호 받기' : '가입 완료'}
+              <Button className="w-full" onClick={submitForm} disabled={loading}>
+                {loading ? '처리 중...' : '인증코드 받기'}
               </Button>
             </>
           ) : (
             <>
+              <div className="flex flex-col items-center py-2 text-center">
+                <MailCheck className="text-safety" size={32} />
+                <p className="mt-3 text-sm text-graphite-900">
+                  <span className="font-semibold">{email}</span> 로<br />
+                  인증코드를 보내드렸습니다.
+                </p>
+                <p className="mt-1 text-xs text-steel-500">
+                  메일에 있는 6자리 코드를 입력하시거나, 메일 안의 인증 링크를 클릭해주세요.
+                </p>
+              </div>
               <div>
-                <Label htmlFor="otp">인증번호 6자리</Label>
+                <Label htmlFor="otp">인증코드 6자리</Label>
                 <Input
                   id="otp"
                   inputMode="numeric"
                   maxLength={6}
+                  placeholder="000000"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                 />
               </div>
-              <Button className="w-full" onClick={verifyAndCreateProfileByPhone} disabled={loading}>
-                {loading ? '가입 중...' : '가입 완료'}
+              <Button className="w-full" onClick={verifyCode} disabled={loading || otp.length < 4}>
+                {loading ? '확인 중...' : '인증 완료'}
               </Button>
+              <button
+                type="button"
+                className="w-full text-center text-xs text-steel-400 underline"
+                onClick={resendCode}
+              >
+                인증코드 다시 받기
+              </button>
+              {resendMsg && <p className="text-center text-xs text-steel-500">{resendMsg}</p>}
             </>
           )}
           {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
@@ -285,10 +221,4 @@ function SignupForm() {
       </p>
     </div>
   );
-}
-
-function normalizePhone(phone: string) {
-  const digits = phone.replace(/[^0-9]/g, '');
-  if (digits.startsWith('0')) return '+82' + digits.slice(1);
-  return digits.startsWith('+') ? phone : '+82' + digits;
 }
