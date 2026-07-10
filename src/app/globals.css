@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: #F6F5F1;
+  color: #1C1F24;
+}
+
+/* 계기판 스타일 스크롤바 (선택적, 데스크탑 전용) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #8A8F98;
+  border-radius: 4px;
+}
+
+/* 포커스 접근성 */
+:focus-visible {
+  outline: 2px solid #FF5A1F;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* 안전줄무늬 패턴 - 헤더 액센트에 사용 */
+.hazard-stripe {
+  background-image: repeating-linear-gradient(
+    135deg,
+    #FF5A1F,
+    #FF5A1F 10px,
+    #1C1F24 10px,
+    #1C1F24 20px
+  );
+}
