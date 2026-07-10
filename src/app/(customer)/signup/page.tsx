@@ -1,35 +1,59 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input, Label } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
+import { cn } from '@/lib/utils';
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
+  );
+}
+
+function SignupForm() {
   const supabase = createClient();
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [tab, setTab] = useState<'phone' | 'email'>('phone');
   const [step, setStep] = useState<'form' | 'otp'>('form');
+
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
   const [referralCode, setReferralCode] = useState(searchParams.get('ref') || '');
   const [agree, setAgree] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function submitForm() {
-    if (!name || phone.length < 9) {
-      setError('이름과 휴대폰 번호를 확인해주세요.');
-      return;
+  function validateBasics() {
+    if (!name) {
+      setError('이름을 입력해주세요.');
+      return false;
     }
     if (!agree) {
       setError('필수 약관에 동의해주세요.');
+      return false;
+    }
+    return true;
+  }
+
+  // --- 휴대폰 가입 ---
+  async function submitPhoneForm() {
+    if (!validateBasics()) return;
+    if (phone.length < 9) {
+      setError('휴대폰 번호를 확인해주세요.');
       return;
     }
     setError('');
@@ -43,7 +67,7 @@ export default function SignupPage() {
     setStep('otp');
   }
 
-  async function verifyAndCreateProfile() {
+  async function verifyAndCreateProfileByPhone() {
     setLoading(true);
     setError('');
     const { data, error } = await supabase.auth.verifyOtp({
@@ -75,12 +99,75 @@ export default function SignupPage() {
     router.refresh();
   }
 
+  // --- 이메일 가입 ---
+  async function submitEmailForm() {
+    if (!validateBasics()) return;
+    if (!email || password.length < 6) {
+      setError('이메일과 6자 이상의 비밀번호를 입력해주세요.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error || !data.user) {
+      setLoading(false);
+      setError(error?.message || '가입 중 오류가 발생했습니다.');
+      return;
+    }
+
+    const { error: profileError } = await supabase.from('profiles').insert({
+      id: data.user.id,
+      name,
+      phone: '', // 이메일 가입 시 연락처는 마이페이지에서 추가 입력 가능
+      phone_verified: false,
+      login_provider: 'email',
+      referred_by: referralCode || null,
+      marketing_agree: marketing,
+    });
+    setLoading(false);
+    if (profileError) {
+      setError('프로필 생성 중 오류가 발생했습니다: ' + profileError.message);
+      return;
+    }
+    router.push('/vehicles?welcome=1');
+    router.refresh();
+  }
+
   return (
     <div className="mx-auto max-w-sm py-10">
       <h1 className="font-display text-2xl font-bold text-graphite-900">회원가입</h1>
-      <p className="mt-1 text-sm text-steel-500">30초면 가입이 끝나요</p>
+      <p className="mt-1 text-sm text-steel-500">휴대폰 또는 이메일로 가입하세요</p>
 
-      <Card className="mt-6">
+      {step === 'form' && (
+        <div className="mt-6 grid grid-cols-2 rounded border border-steel-100 bg-white p-1 text-sm font-semibold">
+          <button
+            onClick={() => {
+              setTab('phone');
+              setError('');
+            }}
+            className={cn(
+              'rounded py-2 transition-colors',
+              tab === 'phone' ? 'bg-graphite-900 text-white' : 'text-steel-500'
+            )}
+          >
+            휴대폰
+          </button>
+          <button
+            onClick={() => {
+              setTab('email');
+              setError('');
+            }}
+            className={cn(
+              'rounded py-2 transition-colors',
+              tab === 'email' ? 'bg-graphite-900 text-white' : 'text-steel-500'
+            )}
+          >
+            이메일
+          </button>
+        </div>
+      )}
+
+      <Card className="mt-4">
         <CardBody className="space-y-4">
           {step === 'form' ? (
             <>
@@ -88,16 +175,44 @@ export default function SignupPage() {
                 <Label htmlFor="name">이름</Label>
                 <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
-              <div>
-                <Label htmlFor="phone">휴대폰 번호</Label>
-                <Input
-                  id="phone"
-                  inputMode="numeric"
-                  placeholder="010-1234-5678"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
+
+              {tab === 'phone' && (
+                <div>
+                  <Label htmlFor="phone">휴대폰 번호</Label>
+                  <Input
+                    id="phone"
+                    inputMode="numeric"
+                    placeholder="010-1234-5678"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {tab === 'email' && (
+                <>
+                  <div>
+                    <Label htmlFor="email">이메일</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="password">비밀번호 (6자 이상)</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+
               <div>
                 <Label htmlFor="ref">추천인 코드 (선택)</Label>
                 <Input
@@ -133,8 +248,12 @@ export default function SignupPage() {
                   </span>
                 </label>
               </div>
-              <Button className="w-full" onClick={submitForm} disabled={loading}>
-                {loading ? '처리 중...' : '인증번호 받기'}
+              <Button
+                className="w-full"
+                onClick={tab === 'phone' ? submitPhoneForm : submitEmailForm}
+                disabled={loading}
+              >
+                {loading ? '처리 중...' : tab === 'phone' ? '인증번호 받기' : '가입 완료'}
               </Button>
             </>
           ) : (
@@ -149,7 +268,7 @@ export default function SignupPage() {
                   onChange={(e) => setOtp(e.target.value)}
                 />
               </div>
-              <Button className="w-full" onClick={verifyAndCreateProfile} disabled={loading}>
+              <Button className="w-full" onClick={verifyAndCreateProfileByPhone} disabled={loading}>
                 {loading ? '가입 중...' : '가입 완료'}
               </Button>
             </>

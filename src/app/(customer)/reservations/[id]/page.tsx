@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
@@ -13,6 +13,14 @@ import { CheckCircle2, Star } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ReservationDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <ReservationDetailContent />
+    </Suspense>
+  );
+}
+
+function ReservationDetailContent() {
   const supabase = createClient();
   const params = useParams();
   const router = useRouter();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Topbar } from '@/components/admin/Topbar';
@@ -24,6 +24,14 @@ const FILTERS: { value: ReservationStatus | 'all'; label: string }[] = [
 ];
 
 export default function AdminReservationsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminReservationsContent />
+    </Suspense>
+  );
+}
+
+function AdminReservationsContent() {
   const supabase = createClient();
   const searchParams = useSearchParams();
   const [filter, setFilter] = useState<ReservationStatus | 'all'>(
