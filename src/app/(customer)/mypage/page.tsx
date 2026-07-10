@@ -66,7 +66,7 @@ export default function MyPage() {
 
   async function logout() {
     await supabase.auth.signOut();
-    router.push('/');
+    router.push('/login');
     router.refresh();
   }
 
@@ -86,14 +86,9 @@ export default function MyPage() {
 
       {/* 내 프로필 정보 */}
       <Card className="mt-5">
-        <CardBody className="flex items-center justify-between">
-          <div>
-            <p className="font-display text-lg font-bold text-graphite-900">{profile.name}</p>
-            <p className="text-sm text-steel-500">{maskPhone(profile.phone)}</p>
-          </div>
-          <Button variant="ghost" size="sm" onClick={logout}>
-            <LogOut size={14} /> 로그아웃
-          </Button>
+        <CardBody>
+          <p className="font-display text-lg font-bold text-graphite-900">{profile.name}</p>
+          <p className="text-sm text-steel-500">{maskPhone(profile.phone)}</p>
         </CardBody>
         <div className="border-t border-steel-100 px-5 py-4">
           <p className="text-xs text-steel-400">내 초대코드 (친구초대 시 사용)</p>
@@ -207,6 +202,10 @@ export default function MyPage() {
           ))}
         </CardBody>
       </Card>
+
+      <Button variant="secondary" className="mt-6 w-full" onClick={logout}>
+        <LogOut size={16} /> 로그아웃
+      </Button>
     </div>
   );
 }
