@@ -225,19 +225,18 @@ function SignupForm() {
                   인증코드를 보내드렸습니다.
                 </p>
                 <p className="mt-1 text-xs text-steel-500">
-                  메일에 있는 6자리 코드를 아래에 입력해주세요.
+                  메일에 있는 인증코드를 아래에 입력해주세요.
                 </p>
                 <p className="mt-1 text-xs text-steel-400">
                   이전에 가입을 시도했던 이메일이라면, 이번에 새로 받은 코드로 인증해주세요.
                 </p>
               </div>
               <div>
-                <Label htmlFor="otp">인증코드 6자리</Label>
+                <Label htmlFor="otp">인증코드</Label>
                 <Input
                   id="otp"
                   inputMode="numeric"
-                  maxLength={6}
-                  placeholder="000000"
+                  placeholder="메일에 있는 인증코드 입력"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                 />
