@@ -40,7 +40,7 @@ export function generateTimeSlots(
   return slots;
 }
 
-export function maskPhone(phone: string) {
-  if (phone.length < 8) return phone;
+export function maskPhone(phone: string | null | undefined) {
+  if (!phone || phone.length < 8) return phone || '미등록';
   return phone.slice(0, 3) + '-****-' + phone.slice(-4);
 }

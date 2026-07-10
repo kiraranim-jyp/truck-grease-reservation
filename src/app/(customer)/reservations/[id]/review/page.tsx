@@ -66,7 +66,7 @@ export default function WriteReviewPage() {
               onChange={(e) => setContent(e.target.value)}
               rows={5}
               placeholder="서비스는 어떠셨나요? 다른 이용자에게 도움이 되는 후기를 남겨주세요."
-              className="w-full rounded border border-steel-100 px-3.5 py-2.5 text-sm focus:border-safety focus:ring-1 focus:ring-safety"
+              className="w-full rounded border border-steel-300 px-3.5 py-2.5 text-sm focus:border-safety focus:ring-1 focus:ring-safety"
             />
           </div>
           {error && <p className="text-xs font-semibold text-red-600">{error}</p>}

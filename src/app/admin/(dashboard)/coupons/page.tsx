@@ -6,8 +6,8 @@ import { Topbar } from '@/components/admin/Topbar';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input, Label, Select } from '@/components/ui/Input';
-import { formatPrice } from '@/lib/utils';
-import type { Coupon } from '@/lib/types';
+import { formatPrice, maskPhone } from '@/lib/utils';
+import type { Coupon, Profile } from '@/lib/types';
 import { Plus, Trash2 } from 'lucide-react';
 
 const emptyCoupon = (): Partial<Coupon> => ({
@@ -25,6 +25,11 @@ export default function AdminCouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [editing, setEditing] = useState<Partial<Coupon> | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [searchPhone, setSearchPhone] = useState('');
+  const [foundCustomer, setFoundCustomer] = useState<Profile | null>(null);
+  const [issueCouponId, setIssueCouponId] = useState('');
+  const [issueMsg, setIssueMsg] = useState('');
 
   async function load() {
     setLoading(true);
@@ -63,6 +68,32 @@ export default function AdminCouponsPage() {
     if (!confirm('삭제하시겠습니까?')) return;
     await supabase.from('coupons').delete().eq('id', id);
     load();
+  }
+
+  async function searchCustomer() {
+    setIssueMsg('');
+    setFoundCustomer(null);
+    const { data } = await supabase.from('profiles').select('*').eq('phone', searchPhone).maybeSingle();
+    if (!data) {
+      setIssueMsg('해당 번호의 고객을 찾을 수 없습니다.');
+      return;
+    }
+    setFoundCustomer(data as Profile);
+  }
+
+  async function issueCoupon() {
+    if (!foundCustomer || !issueCouponId) return;
+    const { error } = await supabase
+      .from('user_coupons')
+      .insert({ profile_id: foundCustomer.id, coupon_id: issueCouponId });
+    setIssueMsg(
+      error ? '발급 중 오류가 발생했습니다: ' + error.message : `${foundCustomer.name}님에게 쿠폰을 발급했습니다.`
+    );
+    if (!error) {
+      setFoundCustomer(null);
+      setSearchPhone('');
+      setIssueCouponId('');
+    }
   }
 
   return (
@@ -145,6 +176,48 @@ export default function AdminCouponsPage() {
             </CardBody>
           </Card>
         )}
+
+        <Card className="mt-4">
+          <CardBody className="space-y-3">
+            <Label>고객에게 개별 쿠폰 발급 (휴대폰 번호로 검색)</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="01012345678"
+                value={searchPhone}
+                onChange={(e) => setSearchPhone(e.target.value)}
+              />
+              <Button variant="secondary" onClick={searchCustomer}>
+                검색
+              </Button>
+            </div>
+            {foundCustomer && (
+              <div className="flex flex-wrap items-center gap-2 rounded bg-steel-50 px-4 py-3">
+                <span className="text-sm">
+                  {foundCustomer.name} ({maskPhone(foundCustomer.phone)})
+                </span>
+                <Select
+                  className="w-auto flex-1"
+                  value={issueCouponId}
+                  onChange={(e) => setIssueCouponId(e.target.value)}
+                >
+                  <option value="">발급할 쿠폰 선택</option>
+                  {coupons
+                    .filter((c) => c.is_active)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} (
+                        {c.type === 'fixed' ? formatPrice(c.value) : `${c.value}%`})
+                      </option>
+                    ))}
+                </Select>
+                <Button size="sm" onClick={issueCoupon} disabled={!issueCouponId}>
+                  발급
+                </Button>
+              </div>
+            )}
+            {issueMsg && <p className="text-xs font-semibold text-steel-500">{issueMsg}</p>}
+          </CardBody>
+        </Card>
 
         <Card className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[750px] text-sm">

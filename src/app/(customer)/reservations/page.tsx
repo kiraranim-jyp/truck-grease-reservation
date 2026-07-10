@@ -1,17 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardBody } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/customer/StatusBadge';
 import { formatDateTime, formatPrice } from '@/lib/utils';
 import type { Reservation } from '@/lib/types';
-import { CalendarPlus, ClipboardList } from 'lucide-react';
+import { CalendarPlus, CheckCircle2, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 export default function ReservationsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ReservationsList />
+    </Suspense>
+  );
+}
+
+function ReservationsList() {
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const created = Number(searchParams.get('created') || 0);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,6 +43,12 @@ export default function ReservationsPage() {
 
   return (
     <div>
+      {created > 1 && (
+        <div className="mb-4 flex items-center gap-2 rounded bg-done-light px-4 py-3 text-sm font-semibold text-done">
+          <CheckCircle2 size={18} /> {created}건의 예약이 정상적으로 접수되었습니다. 승인 결과를
+          알림으로 안내드릴게요.
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-graphite-900">내 예약</h1>

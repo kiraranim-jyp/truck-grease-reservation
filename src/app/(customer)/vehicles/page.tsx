@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
-import { Input, Label } from '@/components/ui/Input';
+import { Input, Label, Select } from '@/components/ui/Input';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Truck, Plus, Trash2 } from 'lucide-react';
 import type { Vehicle } from '@/lib/types';
 
 const VEHICLE_TYPES = ['1톤 트럭', '2.5톤 트럭', '5톤 카고', '8톤 카고', '11톤 카고', '25톤 덤프', '기타'];
+const MANUFACTURERS = ['현대', '기아', '타타대우', '볼보', '스카니아', '벤츠', '기타'];
 
 export default function VehiclesPage() {
   const supabase = createClient();
@@ -60,7 +61,9 @@ export default function VehiclesPage() {
     setSaving(false);
     if (error) {
       setError(
-        error.code === '23505' ? '이미 등록된 차량번호입니다.' : '등록 중 오류가 발생했습니다.'
+        error.code === '23505'
+          ? '이미 등록된 차량번호입니다.'
+          : '등록 중 오류가 발생했습니다: ' + error.message
       );
       return;
     }
@@ -107,19 +110,20 @@ export default function VehiclesPage() {
               </div>
               <div>
                 <Label>차종</Label>
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value)}
-                  className="w-full rounded border border-steel-100 bg-white px-3.5 py-2.5 text-sm focus:border-safety focus:ring-1 focus:ring-safety"
-                >
+                <Select value={type} onChange={(e) => setType(e.target.value)}>
                   {VEHICLE_TYPES.map((t) => (
                     <option key={t}>{t}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <Label>제조사 (선택)</Label>
-                <Input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} />
+                <Select value={manufacturer} onChange={(e) => setManufacturer(e.target.value)}>
+                  <option value="">선택 안 함</option>
+                  {MANUFACTURERS.map((m) => (
+                    <option key={m}>{m}</option>
+                  ))}
+                </Select>
               </div>
               <div>
                 <Label>모델명 (선택)</Label>

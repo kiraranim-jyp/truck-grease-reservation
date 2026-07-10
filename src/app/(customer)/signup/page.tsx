@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input, Label } from '@/components/ui/Input';
 import { Card, CardBody } from '@/components/ui/Card';
-import { MailCheck } from 'lucide-react';
+import { MailCheck, UserCheck } from 'lucide-react';
 
 export default function SignupPage() {
   return (
@@ -22,7 +22,7 @@ function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [step, setStep] = useState<'form' | 'verify' | 'exists'>('form');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,6 +49,18 @@ function SignupForm() {
       return;
     }
     setLoading(true);
+
+    // 인증 완료 여부와 무관하게 auth.users에 이미 있는 이메일이면 바로 로그인으로 안내
+    // (인증코드를 새로 보내는 대신, 실제 계정 테이블을 직접 확인해 정확히 판별)
+    const { data: exists, error: existsError } = await supabase.rpc('email_exists', {
+      p_email: email,
+    });
+    if (!existsError && exists) {
+      setLoading(false);
+      setStep('exists');
+      return;
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -59,21 +71,32 @@ function SignupForm() {
           referred_by: referralCode || null,
           marketing_agree: marketing,
         },
+        // 메일 안의 인증 링크를 클릭했을 때도(다른 브라우저일 수 있음) 동일한
+        // "가입 완료" 랜딩을 거쳐가도록 지정
+        emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(
+          '/signup/welcome'
+        )}`,
       },
     });
     setLoading(false);
     if (error) {
-      setError(
-        error.message.includes('already registered')
-          ? '이미 가입된 이메일입니다. 로그인을 시도해주세요.'
-          : '가입 중 오류가 발생했습니다: ' + error.message
-      );
+      if (error.message.includes('already registered')) {
+        setStep('exists');
+        return;
+      }
+      setError('가입 중 오류가 발생했습니다: ' + error.message);
       return;
     }
     // 이메일 인증이 이미 꺼져있는 프로젝트라면 signUp만으로 세션이 바로 생깁니다.
     if (data.session) {
-      router.push('/vehicles?welcome=1');
-      router.refresh();
+      router.push('/signup/welcome');
+      return;
+    }
+    // Supabase는 이미 가입(인증완료)된 이메일이어도 signUp을 에러 없이 성공 처리합니다
+    // (이메일 존재 여부 노출 방지). 다만 이 경우 반환되는 user.identities가 빈 배열이라
+    // 이걸로 "이미 가입된 이메일"인지 구분해 로그인으로 안내합니다.
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      setStep('exists');
       return;
     }
     setStep('verify');
@@ -92,13 +115,20 @@ function SignupForm() {
       setError('인증코드가 올바르지 않거나 만료되었습니다.');
       return;
     }
-    router.push('/vehicles?welcome=1');
-    router.refresh();
+    router.push('/signup/welcome');
   }
 
   async function resendCode() {
     setResendMsg('');
-    const { error } = await supabase.auth.resend({ type: 'signup', email });
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(
+          '/signup/welcome'
+        )}`,
+      },
+    });
     setResendMsg(error ? '재발송에 실패했습니다.' : '인증코드를 다시 보냈습니다.');
   }
 
@@ -109,7 +139,20 @@ function SignupForm() {
 
       <Card className="mt-6">
         <CardBody className="space-y-4">
-          {step === 'form' ? (
+          {step === 'exists' ? (
+            <div className="flex flex-col items-center py-4 text-center">
+              <UserCheck className="text-safety" size={32} />
+              <p className="mt-3 text-sm font-semibold text-graphite-900">
+                이미 가입한 이메일이 있습니다.
+              </p>
+              <p className="mt-1 text-xs text-steel-500">
+                <span className="font-semibold">{email}</span>(으)로 로그인해주세요.
+              </p>
+              <Link href={`/login?email=${encodeURIComponent(email)}`} className="mt-5 w-full">
+                <Button className="w-full">로그인하러 가기</Button>
+              </Link>
+            </div>
+          ) : step === 'form' ? (
             <>
               <div>
                 <Label htmlFor="name">이름</Label>
@@ -182,7 +225,10 @@ function SignupForm() {
                   인증코드를 보내드렸습니다.
                 </p>
                 <p className="mt-1 text-xs text-steel-500">
-                  메일에 있는 6자리 코드를 입력하시거나, 메일 안의 인증 링크를 클릭해주세요.
+                  메일에 있는 6자리 코드를 아래에 입력해주세요.
+                </p>
+                <p className="mt-1 text-xs text-steel-400">
+                  이전에 가입을 시도했던 이메일이라면, 이번에 새로 받은 코드로 인증해주세요.
                 </p>
               </div>
               <div>

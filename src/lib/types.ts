@@ -34,7 +34,7 @@ export interface Profile {
   id: string;
   role: UserRole;
   name: string;
-  phone: string;
+  phone: string | null;
   phone_verified: boolean;
   login_provider: string | null;
   referral_code: string;
@@ -79,6 +79,7 @@ export interface Reservation {
   coupon_id: string | null;
   discount_amount: number;
   final_price: number;
+  address: string | null;
   customer_memo: string | null;
   admin_memo: string | null;
   rejected_reason: string | null;
@@ -126,4 +127,16 @@ export interface OperatingSettings {
   closed_weekdays: number[];
   blocked_dates: string[];
   auto_approve: boolean;
+}
+
+export interface Event {
+  id: string;
+  title: string;
+  content: string | null;
+  image_url: string | null;
+  link_url: string | null;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
 }

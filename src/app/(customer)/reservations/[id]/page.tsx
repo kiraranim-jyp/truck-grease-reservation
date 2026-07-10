@@ -3,13 +3,13 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ReservationGauge } from '@/components/customer/ReservationGauge';
 import { StatusBadge } from '@/components/customer/StatusBadge';
 import { formatDateTime, formatPrice } from '@/lib/utils';
 import type { Reservation } from '@/lib/types';
-import { CheckCircle2, Star } from 'lucide-react';
+import { CheckCircle2, MapPin, Star, Truck } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ReservationDetailPage() {
@@ -86,23 +86,50 @@ function ReservationDetailContent() {
         </CardBody>
       </Card>
 
-      <Card className="mt-4">
-        <CardHeader>
-          <h2 className="text-sm font-bold uppercase tracking-wide text-steel-500">예약 정보</h2>
-        </CardHeader>
+      {/* 요약 카드 */}
+      <Card className="mt-4 overflow-hidden">
+        <div className="flex items-center gap-3 bg-graphite-900 px-5 py-4 text-white">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-white/10">
+            <Truck size={20} />
+          </div>
+          <div>
+            <p className="font-mono text-lg font-bold">{reservation.vehicle?.plate_number}</p>
+            <p className="text-xs text-steel-400">
+              {reservation.vehicle?.vehicle_type} · {reservation.service?.name}
+            </p>
+          </div>
+        </div>
         <CardBody className="space-y-3 text-sm">
-          <Row label="차량" value={`${reservation.vehicle?.plate_number} (${reservation.vehicle?.vehicle_type})`} />
-          <Row label="서비스" value={reservation.service?.name || ''} />
           <Row label="방문 일시" value={formatDateTime(reservation.reserved_date, reservation.reserved_time)} />
-          <Row label="결제 금액" value={formatPrice(reservation.final_price)} />
-          {reservation.discount_amount > 0 && (
-            <Row label="할인 금액" value={`-${formatPrice(reservation.discount_amount)}`} />
+          {reservation.address && (
+            <div className="flex items-start justify-between gap-4 border-b border-steel-50 pb-3">
+              <span className="flex shrink-0 items-center gap-1 text-steel-500">
+                <MapPin size={13} /> 방문 주소
+              </span>
+              <span className="text-right font-semibold text-graphite-900">{reservation.address}</span>
+            </div>
           )}
           {reservation.customer_memo && <Row label="요청사항" value={reservation.customer_memo} />}
           {reservation.status === 'rejected' && reservation.rejected_reason && (
             <Row label="반려 사유" value={reservation.rejected_reason} danger />
           )}
         </CardBody>
+        <div className="space-y-1.5 border-t border-steel-100 bg-steel-50 px-5 py-4">
+          <div className="flex justify-between text-sm text-steel-500">
+            <span>서비스 금액</span>
+            <span>{formatPrice(reservation.price)}</span>
+          </div>
+          {reservation.discount_amount > 0 && (
+            <div className="flex justify-between text-sm text-safety-dark">
+              <span>할인</span>
+              <span>-{formatPrice(reservation.discount_amount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-steel-100 pt-2 text-base font-bold text-graphite-900">
+            <span>결제 금액</span>
+            <span>{formatPrice(reservation.final_price)}</span>
+          </div>
+        </div>
       </Card>
 
       <div className="mt-5 flex gap-2">

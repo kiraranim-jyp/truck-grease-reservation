@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { ReservationGauge } from '@/components/customer/ReservationGauge';
+import { EventPopup } from '@/components/customer/EventPopup';
 import { CheckCircle2, Clock, ShieldCheck } from 'lucide-react';
 
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-steel-50">
+      <EventPopup />
       {/* Header */}
       <header className="bg-graphite-900 text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 md:px-6">

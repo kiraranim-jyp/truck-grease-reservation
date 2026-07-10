@@ -19,6 +19,7 @@ const config: Config = {
         steel: {
           50: '#F6F5F1',
           100: '#EDECE6',
+          300: '#C7C5BD',
           400: '#8A8F98',
           500: '#6B7280',
           600: '#4B5058',

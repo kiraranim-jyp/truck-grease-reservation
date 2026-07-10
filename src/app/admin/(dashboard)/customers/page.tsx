@@ -32,7 +32,7 @@ export default function AdminCustomersPage() {
   }, []);
 
   const filtered = customers.filter(
-    (c) => c.name.includes(search) || c.phone.includes(search)
+    (c) => c.name.includes(search) || (c.phone || '').includes(search)
   );
 
   return (

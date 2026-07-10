@@ -28,7 +28,7 @@ create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   role user_role not null default 'customer',
   name text not null,
-  phone text unique not null,
+  phone text unique, -- 이메일 가입 시점에는 수집하지 않아 null 허용 (unique 제약은 null 여러 개를 허용)
   phone_verified boolean not null default false,
   login_provider text, -- 'phone' | 'kakao' | 'naver'
   referral_code text unique not null default substr(replace(uuid_generate_v4()::text, '-', ''), 1, 8),
@@ -77,6 +77,21 @@ create table services (
 );
 
 -- ------------------------------------------------------------
+-- EVENTS (홈 화면 이벤트 공지 팝업)
+-- ------------------------------------------------------------
+create table events (
+  id uuid primary key default uuid_generate_v4(),
+  title text not null,
+  content text,
+  image_url text,
+  link_url text,
+  start_date date not null,
+  end_date date not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- ------------------------------------------------------------
 -- OPERATING SETTINGS (운영설정: 영업시간, 슬롯 단위, 동시 수용 대수 등)
 -- ------------------------------------------------------------
 create table operating_settings (
@@ -108,6 +123,7 @@ create table reservations (
   coupon_id uuid, -- FK added below after coupons table is created
   discount_amount int not null default 0,
   final_price int not null default 0,
+  address text, -- 방문(그리스업 작업) 주소, 예약마다 다를 수 있어 예약건별로 저장
   customer_memo text,
   admin_memo text,
   rejected_reason text,
@@ -273,7 +289,38 @@ $$ language plpgsql;
 create trigger trg_reservation_status_log before update on reservations
   for each row execute function log_reservation_status_change();
 
--- 신규 가입 시 profiles row 자동 생성 (auth.users 트리거는 Supabase Auth Hook에서 별도 처리 권장)
+-- ------------------------------------------------------------
+-- 신규 가입 시 profiles row 자동 생성
+-- auth.users에 새 유저가 생기면(이메일 가입 verifyOtp 완료 시점) signUp의
+-- options.data(name, referred_by, marketing_agree)를 읽어 profiles row를 만든다.
+-- referred_by는 존재하는 추천코드일 때만 채우고, 아니면 null 처리해 FK 위반으로
+-- 가입 자체가 실패하지 않게 방어한다.
+-- ------------------------------------------------------------
+create or replace function handle_new_user()
+returns trigger as $$
+declare
+  v_referred_by text;
+begin
+  select referral_code into v_referred_by
+  from profiles
+  where referral_code = new.raw_user_meta_data->>'referred_by';
+
+  insert into profiles (id, name, referred_by, marketing_agree)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'name', ''),
+    v_referred_by,
+    coalesce((new.raw_user_meta_data->>'marketing_agree')::boolean, false)
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function handle_new_user();
 
 -- ------------------------------------------------------------
 -- 추천인 리워드 자동 지급
@@ -337,6 +384,7 @@ alter table referrals enable row level security;
 alter table reviews enable row level security;
 alter table notification_logs enable row level security;
 alter table admin_audit_logs enable row level security;
+alter table events enable row level security;
 
 -- helper: 현재 사용자가 관리자인지
 create or replace function is_admin()
@@ -346,6 +394,16 @@ returns boolean as $$
     where id = auth.uid() and role in ('admin', 'super_admin')
   );
 $$ language sql stable security definer;
+
+-- 회원가입 폼에서 이메일 중복(인증 여부 무관) 여부를 확인하기 위한 함수
+create or replace function email_exists(p_email text)
+returns boolean as $$
+  select exists (
+    select 1 from auth.users where email = lower(p_email)
+  );
+$$ language sql stable security definer;
+
+grant execute on function email_exists(text) to anon, authenticated;
 
 -- profiles
 create policy "본인 프로필 조회" on profiles for select using (id = auth.uid() or is_admin());
@@ -361,6 +419,9 @@ create policy "본인 차량 삭제" on vehicles for delete using (owner_id = au
 -- services (전체 공개 조회, 관리자만 수정)
 create policy "서비스 목록 공개 조회" on services for select using (true);
 create policy "서비스 관리자 관리" on services for all using (is_admin()) with check (is_admin());
+
+create policy "이벤트 공개 조회" on events for select using (true);
+create policy "이벤트 관리자 관리" on events for all using (is_admin()) with check (is_admin());
 
 -- operating_settings
 create policy "운영설정 공개 조회" on operating_settings for select using (true);
