@@ -15,7 +15,7 @@ export function Topbar({ title }: { title: string }) {
   }
 
   return (
-    <div className="flex items-center justify-between border-b border-steel-100 bg-white px-4 py-4 md:px-8">
+    <div className="flex items-center justify-between border-b border-steel-100 bg-white py-4 pl-16 pr-4 md:px-8">
       <h1 className="font-display text-xl font-bold text-graphite-900">{title}</h1>
       <button
         onClick={logout}
