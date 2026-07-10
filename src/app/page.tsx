@@ -2,9 +2,15 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { ReservationGauge } from '@/components/customer/ReservationGauge';
 import { EventPopup } from '@/components/customer/EventPopup';
+import { createClient } from '@/lib/supabase/server';
 import { CheckCircle2, Clock, ShieldCheck } from 'lucide-react';
 
-export default function HomePage() {
+export default async function HomePage() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <main className="min-h-screen bg-steel-50">
       <EventPopup />
@@ -16,8 +22,11 @@ export default function HomePage() {
             <span className="font-display text-lg font-semibold tracking-wide">TRUCK GREASE</span>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm font-medium text-steel-400 hover:text-white">
-              로그인
+            <Link
+              href={user ? '/mypage' : '/login'}
+              className="text-sm font-medium text-steel-400 hover:text-white"
+            >
+              {user ? '내 정보' : '로그인'}
             </Link>
             <Link href="/reservations/new">
               <Button size="sm">지금 예약</Button>
